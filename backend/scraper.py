@@ -19,7 +19,11 @@ RSS_FEEDS = {
     "New York Times (EUA)": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
     "Fox News (EUA)": "http://feeds.foxnews.com/foxnews/world",
     "TASS (Rússia)": "https://tass.com/rss/v2.xml",
-    "Xinhua (China)": "http://www.xinhuanet.com/english/rss/world.xml"
+    "Xinhua (China)": "http://www.xinhuanet.com/english/rss/world.xml",
+    
+    # Veículos do Brasil
+    "G1 (Brasil)": "https://g1.globo.com/rss/g1/mundo/",
+    "Folha de S.Paulo (Brasil)": "https://feeds.folha.uol.com.br/mundo/rss091.xml"
 }
 
 # Palavras-chave em inglês para filtrar os artigos relevantes
