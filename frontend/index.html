@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Global | Israel-Irã-EUA</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- PWA Configs -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d1117">
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3228/3228800.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="background-decorations">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+        <div class="glow-orb orb-3"></div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <span class="dot live-dot"></span>
+                <h1>Radar Global</h1>
+            </div>
+            <p class="subtitle">Monitoramento de Conflitos e Relações Internacionais</p>
+
+            <div class="filters">
+                <button class="filter-btn active" data-filter="all">Todas</button>
+                <button class="filter-btn" data-filter="Guerras">Guerras (Oriente Médio e EUA)</button>
+                <button class="filter-btn" data-filter="Brasil">Brasil</button>
+                <button class="filter-btn" data-filter="ChinaRússia">China & Rússia</button>
+
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="Buscar por palavra...">
+                </div>
+            </div>
+
+            <div class="status-bar">
+                <span id="last-update">Última atualização: buscando...</span>
+                <span class="refresh-indicator">Atualização automática ativa</span>
+            </div>
+        </header>
+
+        <main>
+            <div id="news-container" class="news-grid">
+                <!-- Cards serão inseridos aqui pelo Javascript -->
+            </div>
+
+            <div id="load-more-container" style="text-align: center; margin: 2rem 0; display: none;">
+                <button id="load-more-btn" class="filter-btn active" style="padding: 12px 30px; font-size: 1rem;">
+                    Ver mais notícias
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
