@@ -61,7 +61,7 @@ def get_news():
     return []
 
 # Monta a pasta frontend para ser servida diretamente pelo servidor
-app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
+app.mount("/", StaticFiles(directory="../.", html=True), name="frontend")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
