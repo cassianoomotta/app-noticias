@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.env
+.env.local
+
+# Cache de notícias (gerado em runtime, não deve ir para o repo)
+backend/news_cache.json
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Antigravity Kit (temporário)
+.temp_ag_kit/

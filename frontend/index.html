@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Global | Monitoramento de Conflitos</title>
+    <meta name="description" content="Acompanhe em tempo real as principais notícias mundiais sobre conflitos e relações internacionais.">
+    <link rel="stylesheet" href="style.css">
+
+    <!-- PWA Configs -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d1117">
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/3228/3228800.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="background-decorations">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+        <div class="glow-orb orb-3"></div>
+    </div>
+
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="logo-container">
+                    <div class="live-dot"></div>
+                    <h1>Radar Global</h1>
+                </div>
+                <div class="header-meta">
+                    <p id="current-date" class="current-date"></p>
+                    <p id="last-update-text" class="update-time">Buscando atualizações mundiais...</p>
+                    <p id="next-update-text" class="next-update"></p>
+                </div>
+            </div>
+            <p class="subtitle">Monitoramento de Conflitos e Relações Internacionais</p>
+
+            <div class="filters">
+                <button class="filter-btn active" data-filter="all">Todas</button>
+                <button class="filter-btn" data-filter="Guerras">Guerras (Oriente Médio e EUA)</button>
+                <button class="filter-btn" data-filter="Brasil">Brasil</button>
+                <button class="filter-btn" data-filter="ChinaRussia">China &amp; Rússia</button>
+
+                <div class="search-box">
+                    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="search-input" placeholder="Buscar por palavra...">
+                </div>
+            </div>
+
+            <div class="status-bar">
+                <span id="status-update-text">Última atualização: buscando...</span>
+                <span class="refresh-indicator">Atualização automática ativa</span>
+            </div>
+        </header>
+
+        <main>
+            <!-- SEÇÃO 1: Principais Notícias do Dia -->
+            <section class="news-section" id="section-today">
+                <div class="section-header">
+                    <div class="section-title-group">
+                        <span class="section-badge today-badge">HOJE</span>
+                        <h2 class="section-title">Principais Notícias do Dia</h2>
+                    </div>
+                    <span class="section-count" id="today-count">0 notícias</span>
+                </div>
+                <div id="today-news-container" class="news-grid">
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Carregando notícias de hoje...</p>
+                    </div>
+                </div>
+                <div id="today-load-more-container" class="load-more-wrapper" style="display: none;">
+                    <button id="today-load-more-btn" class="load-more-btn">
+                        Ver mais notícias de hoje
+                    </button>
+                </div>
+            </section>
+
+            <!-- SEÇÃO 2: Principais Notícias da Semana -->
+            <section class="news-section" id="section-week">
+                <div class="section-header">
+                    <div class="section-title-group">
+                        <span class="section-badge week-badge">SEMANA</span>
+                        <h2 class="section-title">Principais Notícias da Semana</h2>
+                    </div>
+                    <span class="section-count" id="week-count">0 notícias</span>
+                </div>
+                <div id="week-news-container" class="news-grid">
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Carregando notícias da semana...</p>
+                    </div>
+                </div>
+                <div id="week-load-more-container" class="load-more-wrapper" style="display: none;">
+                    <button id="week-load-more-btn" class="load-more-btn">
+                        Ver mais notícias da semana
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>Radar Global &copy; <span id="footer-year"></span> &mdash; Dados agregados de fontes internacionais via RSS</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
