@@ -87,18 +87,18 @@ def get_category_and_tags(translated_text, is_recent):
     """Categoriza a notícia com base no conteúdo traduzido e adiciona sentimentos."""
     text = translated_text.lower()
     category = "Outros"
-    tags = ["world"]
+    tags = ["mundo"]
 
     if is_recent:
-        tags.append("urgent")
+        tags.append("urgente")
 
     if any(word in text for word in ["israel", "gaza", "palestina", "hamas", "irã", "eua", "estados unidos"]):
         category = "Guerras"
-        tags.append("war")
+        tags.append("guerra")
 
     if any(word in text for word in ["brasil", "brasília", "lula", "bolsonaro"]):
         category = "Brasil"
-        tags.append("br")
+        tags.append("brasil")
 
     # Bug 7 — usar "ChinaRussia" (sem acento) para evitar mismatch de encoding HTTP
     if any(word in text for word in ["china", "pequim", "rússia", "moscou", "putin", "xi jinping"]):
@@ -109,9 +109,9 @@ def get_category_and_tags(translated_text, is_recent):
 
     # Análise de Sentimento Básica
     if any(word in text for word in ["ataque", "morte", "sanção", "crise", "tensão", "ameaça", "conflito"]):
-        tags.append("crisis")
+        tags.append("crise")
     elif any(word in text for word in ["paz", "acordo", "trégua", "diplomacia", "negociação", "cooperação"]):
-        tags.append("diplomacy")
+        tags.append("diplomacia")
 
     return category, list(set(tags))
 
