@@ -10,6 +10,23 @@ const API_URL = '/api/news';
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000; // 15 minutos (igual ao backend)
 const INITIAL_CARDS_PER_SECTION = 9;
 
+// Mapeia as tags em pt-BR emitidas pelo backend às classes CSS correspondentes
+const TAG_MAP = {
+    'urgente':    'tag-urgente',
+    'guerra':     'tag-guerra',
+    'diplomacia': 'tag-diplomacia',
+    'crise':      'tag-crise',
+    'mundo':      'tag-mundo',
+    'brasil':     'tag-brasil',
+    // aliases ingleses (compatibilidade)
+    'urgent':    'tag-urgente',
+    'war':       'tag-guerra',
+    'diplomacy': 'tag-diplomacia',
+    'crisis':    'tag-crise',
+    'world':     'tag-mundo',
+    'br':        'tag-brasil',
+};
+
 let allNews = [];
 let filteredToday = [];
 let filteredWeek = [];
@@ -137,10 +154,11 @@ function parseDate(dateStr) {
 function isToday(dateStr) {
     const d = parseDate(dateStr);
     if (!d) return false;
+    // Compara em UTC para evitar distorção por fuso horário (ex: Brasília UTC-3)
     const now = new Date();
-    return d.getDate() === now.getDate()
-        && d.getMonth() === now.getMonth()
-        && d.getFullYear() === now.getFullYear();
+    return d.getUTCDate() === now.getUTCDate()
+        && d.getUTCMonth() === now.getUTCMonth()
+        && d.getUTCFullYear() === now.getUTCFullYear();
 }
 
 function isThisWeek(dateStr) {
@@ -233,22 +251,35 @@ function renderSection(articles, container, shown, loadMoreContainer, sectionTyp
 }
 
 /* ─── Card Creation ─── */
+function buildTagHtml(tagName) {
+    const cssClass = TAG_MAP[tagName.toLowerCase()] || `tag-${tagName}`;
+    const label = tagName.charAt(0).toUpperCase() + tagName.slice(1);
+    return `<span class="tag ${cssClass}">${escapeHtml(label)}</span>`;
+}
+
 function createCard(article) {
     const card = document.createElement('a');
-    card.className = 'news-card';
+    const hasImage = !!(article.image_url);
+    card.className = hasImage ? 'news-card has-image' : 'news-card';
     card.href = article.link || '#';
     card.target = '_blank';
     card.rel = 'noopener noreferrer';
 
-    const tags = (article.tags || []).filter(t => t !== 'urgente');
-    const isUrgent = (article.tags || []).includes('urgente');
+    const allTags = article.tags || [];
+    const isUrgent = allTags.some(t => t === 'urgente' || t === 'urgent');
+    const otherTags = allTags.filter(t => t !== 'urgente' && t !== 'urgent');
     const timeLabel = formatRelativeTime(article.published);
 
+    const imagePart = hasImage
+        ? `<div class="card-image"><img src="${escapeHtml(article.image_url)}" alt="" loading="lazy" onerror="this.parentElement.remove();this.closest('.news-card').classList.remove('has-image')"></div>`
+        : '';
+
     card.innerHTML = `
+        ${imagePart}
         <div class="card-top">
             <div class="tag-list">
-                ${isUrgent ? '<span class="tag tag-urgent">Urgente</span>' : ''}
-                ${tags.map(t => `<span class="tag tag-${t}">${t}</span>`).join('')}
+                ${isUrgent ? '<span class="tag tag-urgente">Urgente</span>' : ''}
+                ${otherTags.map(buildTagHtml).join('')}
             </div>
             ${timeLabel ? `<span class="time-pill">${timeLabel}</span>` : ''}
         </div>

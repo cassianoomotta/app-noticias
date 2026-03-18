@@ -4,6 +4,7 @@ from deep_translator import GoogleTranslator  # type: ignore
 from bs4 import BeautifulSoup  # type: ignore
 import re
 from email.utils import parsedate_to_datetime
+from datetime import datetime, timezone, timedelta
 
 
 # Feeds de fontes globais confiáveis e locais dos países envolvidos
@@ -177,10 +178,22 @@ def fetch_and_process_news():
 
                     # Bug 6 — garante que nenhum dos dois é None antes de concatenar
                     combined = (translated_title or "") + " " + (translated_summary or "")
-                    category, tags = get_category_and_tags(combined, False)
 
                     # Bug 5 — data em ISO 8601 para parsing consistente nos browsers
                     published_iso = parse_published_to_iso(published_raw)
+
+                    # Verifica se o artigo é recente (publicado nas últimas 2 horas)
+                    is_recent = False
+                    if published_iso:
+                        try:
+                            pub_dt = datetime.fromisoformat(published_iso)
+                            if pub_dt.tzinfo is None:
+                                pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+                            is_recent = (datetime.now(timezone.utc) - pub_dt) < timedelta(hours=2)
+                        except Exception:
+                            pass
+
+                    category, tags = get_category_and_tags(combined, is_recent)
 
                     article = {
                         "id": link,
