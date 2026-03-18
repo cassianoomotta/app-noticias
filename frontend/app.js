@@ -240,8 +240,8 @@ function createCard(article) {
     card.target = '_blank';
     card.rel = 'noopener noreferrer';
 
-    const tags = (article.tags || []).filter(t => t !== 'urgent');
-    const isUrgent = (article.tags || []).includes('urgent');
+    const tags = (article.tags || []).filter(t => t !== 'urgente');
+    const isUrgent = (article.tags || []).includes('urgente');
     const timeLabel = formatRelativeTime(article.published);
 
     card.innerHTML = `

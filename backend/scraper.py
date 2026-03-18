@@ -47,6 +47,37 @@ def clean_html(raw_html):
     return soup.get_text()
 
 
+def extract_image_url(entry) -> str:
+    """
+    Extrai a URL de imagem de uma entrada RSS na seguinte ordem de prioridade:
+    1. media:thumbnail (Yahoo Media / Google News)
+    2. enclosure do tipo imagem
+    3. Primeira <img> dentro do campo summary ou content
+    """
+    # 1 — media:thumbnail
+    if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+        return entry.media_thumbnail[0].get('url', '')
+
+    # 2 — enclosure de imagem
+    for enc in getattr(entry, 'enclosures', []):
+        if enc.get('type', '').startswith('image/'):
+            return enc.get('url', '')
+
+    # 3 — primeira <img> no summary ou content
+    raw = entry.get('summary', '') or ''
+    if not raw and hasattr(entry, 'content') and entry.content:
+        raw = entry.content[0].get('value', '')
+    if raw:
+        soup = BeautifulSoup(raw, 'html.parser')
+        img = soup.find('img')
+        if img and img.get('src'):
+            src = img['src']
+            if src.startswith('http'):
+                return src
+
+    return ''
+
+
 def is_relevant(title, summary):
     """Verifica se o título ou o resumo contêm alguma das palavras-chave configuradas."""
     text_to_search = f"{title} {summary}".lower()
@@ -159,7 +190,8 @@ def fetch_and_process_news():
                         "published": published_iso,
                         "tags": tags,
                         "category": category,
-                        "link": link
+                        "link": link,
+                        "image_url": extract_image_url(entry)
                     }
                     processed_news.append(article)
 
