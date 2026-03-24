@@ -8,6 +8,9 @@ import json
 import os
 import datetime
 
+# Adicionamos o diretório atual ao sys.path para evitar ModuleNotFoundError no Render (que roda da raiz)
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from scraper import fetch_and_process_news  # type: ignore
 
 # Caminhos absolutos para funcionar tanto local quanto no Render
