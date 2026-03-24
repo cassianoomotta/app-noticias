@@ -7,8 +7,10 @@
    ================================================== */
 
 const API_URL = '/api/news';
-const REFRESH_INTERVAL_MS = 15 * 60 * 1000; // 15 minutos (igual ao backend)
+const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 const INITIAL_CARDS_PER_SECTION = 9;
+
+const isFileProtocol = window.location.protocol === 'file:';
 
 // Mapeia as tags em pt-BR emitidas pelo backend às classes CSS correspondentes
 const TAG_MAP = {
@@ -105,28 +107,72 @@ function setCurrentDate() {
 
 /* ─── Fetch ─── */
 async function loadNews() {
+    if (typeof CACHED_NEWS !== 'undefined' && CACHED_NEWS && CACHED_NEWS.length > 0) {
+        allNews = CACHED_NEWS;
+        loadSuccess(true);
+        return;
+    }
+    
     try {
         const res = await fetch(API_URL);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         allNews = await res.json();
-
-        const now = new Date();
-        const updateTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        lastUpdateText.textContent = `Atualizado às ${updateTime}`;
-        statusUpdateText.textContent = `Última atualização: ${updateTime}`;
-
-        // Next refresh countdown
-        nextRefreshAt = new Date(now.getTime() + REFRESH_INTERVAL_MS);
-        startCountdown();
-
-        applyFiltersAndRender();
+        loadSuccess();
     } catch (err) {
         console.error('Erro ao carregar notícias:', err);
-        lastUpdateText.textContent = 'Erro ao atualizar — tentando novamente...';
-        statusUpdateText.textContent = 'Erro na conexão com o servidor';
-        showError(todayContainer);
-        showError(weekContainer);
+        await loadFromCache();
     }
+}
+
+async function loadFromCache() {
+    if (typeof CACHED_NEWS !== 'undefined' && CACHED_NEWS && CACHED_NEWS.length > 0) {
+        allNews = CACHED_NEWS;
+        loadSuccess(true);
+        return;
+    }
+    
+    try {
+        const res = await fetch('./news_cache.json');
+        if (res.ok) {
+            allNews = await res.json();
+            loadSuccess(true);
+            return;
+        }
+    } catch {}
+    
+    try {
+        const res2 = await fetch('../backend/news_cache.json');
+        if (res2.ok) {
+            allNews = await res2.json();
+            loadSuccess(true);
+            return;
+        }
+    } catch {}
+    
+    allNews = SAMPLE_NEWS;
+    loadSuccess(true);
+}
+
+const SAMPLE_NEWS = [
+    { title: "Carregando notícias...", summary: "Execute o servidor Python para carregar as notícias em tempo real.", category: "mundo", pubDate: new Date().toISOString(), link: "#", image: "" },
+    { title: "Servidor offline", summary: "Execute 'python main.py' na pasta backend para iniciar.", category: "brasil", pubDate: new Date().toISOString(), link: "#", image: "" }
+];
+
+function loadSuccess(fromCache = false) {
+    const now = new Date();
+    const updateTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    
+    if (fromCache) {
+        lastUpdateText.textContent = `Dados em cache (offline)`;
+        statusUpdateText.textContent = `Modo offline — execute o servidor para atualizar`;
+    } else {
+        lastUpdateText.textContent = `Atualizado às ${updateTime}`;
+        statusUpdateText.textContent = `Última atualização: ${updateTime}`;
+    }
+
+    nextRefreshAt = new Date(now.getTime() + REFRESH_INTERVAL_MS);
+    startCountdown();
+    applyFiltersAndRender();
 }
 
 /* ─── Countdown ─── */
