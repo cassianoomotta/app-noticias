@@ -14,19 +14,19 @@ const isFileProtocol = window.location.protocol === 'file:';
 
 // Mapeia as tags em pt-BR emitidas pelo backend às classes CSS correspondentes
 const TAG_MAP = {
-    'urgente':    'tag-urgente',
-    'guerra':     'tag-guerra',
+    'urgente': 'tag-urgente',
+    'guerra': 'tag-guerra',
     'diplomacia': 'tag-diplomacia',
-    'crise':      'tag-crise',
-    'mundo':      'tag-mundo',
-    'brasil':     'tag-brasil',
+    'crise': 'tag-crise',
+    'mundo': 'tag-mundo',
+    'brasil': 'tag-brasil',
     // aliases ingleses (compatibilidade)
-    'urgent':    'tag-urgente',
-    'war':       'tag-guerra',
+    'urgent': 'tag-urgente',
+    'war': 'tag-guerra',
     'diplomacy': 'tag-diplomacia',
-    'crisis':    'tag-crise',
-    'world':     'tag-mundo',
-    'br':        'tag-brasil',
+    'crisis': 'tag-crise',
+    'world': 'tag-mundo',
+    'br': 'tag-brasil',
 };
 
 let allNews = [];
@@ -110,14 +110,14 @@ async function loadNews() {
     console.log('DEBUG: Carregando notícias...');
     console.log('DEBUG: CACHED_NEWS existe?', typeof CACHED_NEWS !== 'undefined');
     console.log('DEBUG: CACHED_NEWS tem dados?', CACHED_NEWS && CACHED_NEWS.length);
-    
+
     if (typeof CACHED_NEWS !== 'undefined' && CACHED_NEWS && CACHED_NEWS.length > 0) {
         console.log('DEBUG: Usando dados do cache, total:', CACHED_NEWS.length);
         allNews = CACHED_NEWS;
         loadSuccess(true);
         return;
     }
-    
+
     try {
         const res = await fetch(API_URL);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -135,7 +135,7 @@ async function loadFromCache() {
         loadSuccess(true);
         return;
     }
-    
+
     try {
         const res = await fetch('./news_cache.json');
         if (res.ok) {
@@ -143,8 +143,8 @@ async function loadFromCache() {
             loadSuccess(true);
             return;
         }
-    } catch {}
-    
+    } catch { }
+
     try {
         const res2 = await fetch('../backend/news_cache.json');
         if (res2.ok) {
@@ -152,8 +152,8 @@ async function loadFromCache() {
             loadSuccess(true);
             return;
         }
-    } catch {}
-    
+    } catch { }
+
     allNews = SAMPLE_NEWS;
     loadSuccess(true);
 }
@@ -166,15 +166,16 @@ const SAMPLE_NEWS = [
 function loadSuccess(fromCache = false) {
     const now = new Date();
     const updateTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    
+
     if (fromCache) {
-        lastUpdateText.textContent = `Dados em cache (offline)`;
-        statusUpdateText.textContent = `Modo offline — execute o servidor para atualizar`;
+        lastUpdateText.textContent = `Offline (Cache Local)`;
+        statusUpdateText.textContent = `Origem: Arquivo local. Inicie o servidor Python para conteúdo online.`;
     } else {
         lastUpdateText.textContent = `Atualizado às ${updateTime}`;
-        statusUpdateText.textContent = `Última atualização: ${updateTime}`;
+        statusUpdateText.textContent = `Status: Conectado e atualizando em tempo real`;
     }
 
+    updateReferenceDate(allNews);
     nextRefreshAt = new Date(now.getTime() + REFRESH_INTERVAL_MS);
     startCountdown();
     applyFiltersAndRender();
@@ -194,6 +195,24 @@ function startCountdown() {
 }
 
 /* ─── Date Classification ─── */
+let referenceDate = new Date();
+
+function updateReferenceDate(articles) {
+    referenceDate = new Date();
+    if (!articles || articles.length === 0) return;
+    const sorted = [...articles].sort((a, b) => {
+        const da = parseDate(a.published);
+        const db = parseDate(b.published);
+        return (db || 0) - (da || 0);
+    });
+    if (sorted.length > 0) {
+        const newest = parseDate(sorted[0].published);
+        if (newest && (referenceDate - newest) > 24 * 60 * 60 * 1000) {
+            referenceDate = newest;
+        }
+    }
+}
+
 function parseDate(dateStr) {
     if (!dateStr) return null;
     try {
@@ -205,19 +224,16 @@ function parseDate(dateStr) {
 function isToday(dateStr) {
     const d = parseDate(dateStr);
     if (!d) return false;
-    // Compara em UTC para evitar distorção por fuso horário (ex: Brasília UTC-3)
-    const now = new Date();
-    return d.getUTCDate() === now.getUTCDate()
-        && d.getUTCMonth() === now.getUTCMonth()
-        && d.getUTCFullYear() === now.getUTCFullYear();
+    return d.getUTCDate() === referenceDate.getUTCDate()
+        && d.getUTCMonth() === referenceDate.getUTCMonth()
+        && d.getUTCFullYear() === referenceDate.getUTCFullYear();
 }
 
 function isThisWeek(dateStr) {
     const d = parseDate(dateStr);
     if (!d) return false;
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    return d >= weekAgo && d <= now;
+    const weekAgo = new Date(referenceDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return d >= weekAgo && d <= referenceDate;
 }
 
 /* ─── Filtering ─── */
@@ -241,9 +257,9 @@ function applyFiltersAndRender() {
     console.log('DEBUG applyFilters: matching.length =', matching.length);
     console.log('DEBUG applyFilters: activeFilter =', activeFilter);
 
-    // TEMPORÁRIO: Mostrar todas as notícias em "Hoje" para teste
-    filteredToday = [...matching];
-    const weekArticles = [];
+    // Classifica as notícias baseando-se na data (Hoje vs Semana)
+    filteredToday = matching.filter(a => isToday(a.published));
+    const weekArticles = matching.filter(a => isThisWeek(a.published) && !isToday(a.published));
 
     // Sort: articles with dates first (newest first), no-date at the end
     const sortByDate = (arr) => arr.sort((a, b) => {
