@@ -1,0 +1,5 @@
+9e6c834 Add files via upload
+f6f9abf Delete backend/main.py
+85b6bf5 Merge branch 'main' of https://github.com/cassianoomotta/app-noticias
+d46dc65 .
+b58c04b Delete .geminiignore

@@ -107,12 +107,7 @@ function setCurrentDate() {
 
 /* ─── Fetch ─── */
 async function loadNews() {
-    console.log('DEBUG: Carregando notícias...');
-    console.log('DEBUG: CACHED_NEWS existe?', typeof CACHED_NEWS !== 'undefined');
-    console.log('DEBUG: CACHED_NEWS tem dados?', CACHED_NEWS && CACHED_NEWS.length);
-
     if (typeof CACHED_NEWS !== 'undefined' && CACHED_NEWS && CACHED_NEWS.length > 0) {
-        console.log('DEBUG: Usando dados do cache, total:', CACHED_NEWS.length);
         allNews = CACHED_NEWS;
         loadSuccess(true);
         return;
@@ -198,19 +193,18 @@ function startCountdown() {
 let referenceDate = new Date();
 
 function updateReferenceDate(articles) {
-    referenceDate = new Date();
-    if (!articles || articles.length === 0) return;
+    if (!articles || articles.length === 0) {
+        referenceDate = new Date();
+        return;
+    }
+    // Always anchor referenceDate to the most-recent article's timestamp
     const sorted = [...articles].sort((a, b) => {
         const da = parseDate(a.published);
         const db = parseDate(b.published);
         return (db || 0) - (da || 0);
     });
-    if (sorted.length > 0) {
-        const newest = parseDate(sorted[0].published);
-        if (newest && (referenceDate - newest) > 24 * 60 * 60 * 1000) {
-            referenceDate = newest;
-        }
-    }
+    const newest = parseDate(sorted[0].published);
+    referenceDate = newest || new Date();
 }
 
 function parseDate(dateStr) {
@@ -221,12 +215,12 @@ function parseDate(dateStr) {
     } catch { return null; }
 }
 
+// "Today" = published within the 24 hours before the most-recent article (referenceDate)
 function isToday(dateStr) {
     const d = parseDate(dateStr);
     if (!d) return false;
-    return d.getUTCDate() === referenceDate.getUTCDate()
-        && d.getUTCMonth() === referenceDate.getUTCMonth()
-        && d.getUTCFullYear() === referenceDate.getUTCFullYear();
+    const cutoff = new Date(referenceDate.getTime() - 24 * 60 * 60 * 1000);
+    return d >= cutoff && d <= referenceDate;
 }
 
 function isThisWeek(dateStr) {
@@ -252,11 +246,7 @@ function matchesSearch(article) {
 }
 
 function applyFiltersAndRender() {
-    console.log('DEBUG applyFilters: allNews.length =', allNews.length);
     const matching = allNews.filter(a => matchesFilter(a) && matchesSearch(a));
-    console.log('DEBUG applyFilters: matching.length =', matching.length);
-    console.log('DEBUG applyFilters: activeFilter =', activeFilter);
-
     // Classifica as notícias baseando-se na data (Hoje vs Semana)
     filteredToday = matching.filter(a => isToday(a.published));
     const weekArticles = matching.filter(a => isThisWeek(a.published) && !isToday(a.published));
