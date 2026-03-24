@@ -1,50 +1,97 @@
-# Radar Global 🌍
+# 🌍 Radar Global
 
-Aplicação web focada no monitoramento em tempo real de notícias globais sobre conflitos, guerras, diplomacia e crise. Os dados são coletados via web scraping (RSS) e servidos por uma API assíncrona até a interface (frontend).
-
-## 🚀 Como funciona
-A arquitetura é dividida em duas partes integradas:
-- **Backend (API)**: Construído em Python usando **FastAPI**. Ele captura notícias de fontes internacionais usando Feedparser, traduz usando Deep-Translator e serve o JSON via rotas. O backend também hospeda o frontend estaticamente.
-- **Frontend**: Desenvolvido em HTML/CSS/JS nativo com forte ênfase em design moderno, UX (Leis de contraste, Von Restorff) e perfomance (completamente responsivo e suporta PWA offline cache mode).
+Aplicação web de monitoramento em tempo real de notícias globais sobre guerras, conflitos, diplomacia, China & Rússia e Brasil. Os dados são coletados automaticamente via RSS de 14 fontes internacionais, traduzidos para português e servidos por uma API assíncrona.
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
-- **Python 3+** (FastAPI, Uvicorn, APScheduler, BeautifulSoup4)
-- **CSS3** (Variáveis dinâmicas, Glassmorphism, CSS Grid & Flexbox)
-- **JavaScript (ES6)**
+## ✨ Funcionalidades
+
+- **Seção "HOJE"** — Notícias das últimas 24 horas
+- **Seção "SEMANA"** — Notícias dos últimos 7 dias (exceto as de hoje)
+- **Filtros por categoria** — Todas | Guerras | Brasil | China & Rússia
+- **Busca por palavra-chave** em tempo real
+- **Atualização automática** a cada 15 minutos
+- **Modo offline inteligente** — exibe cache local quando sem servidor
+- **PWA** — instalável em dispositivos móveis
+- **Imagens nas notícias** extraídas automaticamente dos feeds RSS
+
+---
+
+## 🛠️ Tecnologias
+
+| Camada | Tecnologia |
+|--------|-----------|
+| Backend | Python 3 + FastAPI + Uvicorn + APScheduler |
+| Scraping | Feedparser + BeautifulSoup4 |
+| Tradução | Deep-Translator (Google Translator gratuito) |
+| Frontend | HTML5 + CSS3 + JavaScript Vanilla (ES6) |
+| Deploy | Render (Web Service) |
+
+---
+
+## 📁 Estrutura do Projeto
+
+```
+/
+├── backend/
+│   ├── main.py          # API FastAPI + agendador
+│   └── scraper.py       # Busca, filtra e traduz RSS feeds
+├── frontend/
+│   ├── index.html       # Interface principal
+│   ├── style.css        # Estilos (dark/light, responsivo)
+│   ├── app.js           # Lógica, filtros, classificação temporal
+│   ├── data.js          # Cache estático (notícias pré-carregadas)
+│   └── manifest.json    # Config PWA
+├── requirements.txt     # Dependências Python (para o Render)
+└── README.md
+```
 
 ---
 
 ## 💻 Rodando Localmente
 
 ### Pré-requisitos
-Tenha o Python 3.10+ instalado na sua máquina.
+- Python 3.10+
 
-1. **Clone o repositório**
+### Passos
+
 ```bash
+# 1. Clone o repositório
 git clone https://github.com/cassianoomotta/app-noticias.git
 cd app-noticias
-```
 
-2. **Instale as dependências**
-Na raiz do projeto, instale os pacotes definidos no `requirements.txt`:
-```bash
+# 2. Instale as dependências
 pip install -r requirements.txt
-```
 
-3. **Inicie o servidor**
-Execute o comando abaixo para ativar tanto a raspagem automática de notícias quanto a API:
-```bash
+# 3. Inicie o servidor
 uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
-4. **Acesse o App**
-Abra o navegador em: [http://localhost:8000](http://localhost:8000)
+
+Acesse em: [http://localhost:8000](http://localhost:8000)
+
+---
 
 ## 🌐 Deploy no Render
-Este projeto já foi otimizado para a plataforma **Render**.
-- **Build Command**: `pip install -r requirements.txt`
-- **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+
+| Configuração | Valor |
+|-------------|-------|
+| **Build Command** | `pip install -r requirements.txt` |
+| **Start Command** | `uvicorn backend.main:app --host 0.0.0.0 --port $PORT` |
+
+> O arquivo `requirements.txt` deve estar na **raiz** do repositório.
+
+---
+
+## 📡 Fontes de Notícias (RSS)
+
+| Região | Fonte |
+|--------|-------|
+| Global | BBC World, Reuters, Al Jazeera, CNN, DW |
+| Oriente Médio | Times of Israel, Jerusalem Post |
+| EUA | New York Times, Fox News |
+| Rússia | TASS |
+| China | Xinhua |
+| Brasil | G1 Globo, Folha de S.Paulo |
 
 ---
 
