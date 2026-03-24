@@ -170,7 +170,6 @@ function loadSuccess(fromCache = false) {
         statusUpdateText.textContent = `Status: Conectado e atualizando em tempo real`;
     }
 
-    updateReferenceDate(allNews);
     nextRefreshAt = new Date(now.getTime() + REFRESH_INTERVAL_MS);
     startCountdown();
     applyFiltersAndRender();
@@ -190,23 +189,6 @@ function startCountdown() {
 }
 
 /* ─── Date Classification ─── */
-let referenceDate = new Date();
-
-function updateReferenceDate(articles) {
-    if (!articles || articles.length === 0) {
-        referenceDate = new Date();
-        return;
-    }
-    // Always anchor referenceDate to the most-recent article's timestamp
-    const sorted = [...articles].sort((a, b) => {
-        const da = parseDate(a.published);
-        const db = parseDate(b.published);
-        return (db || 0) - (da || 0);
-    });
-    const newest = parseDate(sorted[0].published);
-    referenceDate = newest || new Date();
-}
-
 function parseDate(dateStr) {
     if (!dateStr) return null;
     try {
@@ -215,19 +197,22 @@ function parseDate(dateStr) {
     } catch { return null; }
 }
 
-// "Today" = published within the 24 hours before the most-recent article (referenceDate)
+// "Hoje" = publicadas nas últimas 24h a partir de agora (tempo real)
 function isToday(dateStr) {
     const d = parseDate(dateStr);
     if (!d) return false;
-    const cutoff = new Date(referenceDate.getTime() - 24 * 60 * 60 * 1000);
-    return d >= cutoff && d <= referenceDate;
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    return d >= cutoff && d <= now;
 }
 
+// "Semana" = publicadas nos últimos 7 dias, excluindo as de "hoje"
 function isThisWeek(dateStr) {
     const d = parseDate(dateStr);
     if (!d) return false;
-    const weekAgo = new Date(referenceDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-    return d >= weekAgo && d <= referenceDate;
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return d >= weekAgo && d < new Date(now.getTime() - 24 * 60 * 60 * 1000);
 }
 
 /* ─── Filtering ─── */
