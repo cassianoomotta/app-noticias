@@ -107,19 +107,19 @@ function setCurrentDate() {
 
 /* ─── Fetch ─── */
 async function loadNews() {
-    if (typeof CACHED_NEWS !== 'undefined' && CACHED_NEWS && CACHED_NEWS.length > 0) {
-        allNews = CACHED_NEWS;
-        loadSuccess(true);
+    // Sempre tenta a API ao vivo primeiro — cache é apenas fallback
+    if (window.location.protocol === 'file:') {
+        // Modo file:// — sem servidor, usa cache direto
+        await loadFromCache();
         return;
     }
-
     try {
         const res = await fetch(API_URL);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         allNews = await res.json();
-        loadSuccess();
+        loadSuccess(false);
     } catch (err) {
-        console.error('Erro ao carregar notícias:', err);
+        console.error('API indisponível, carregando cache:', err);
         await loadFromCache();
     }
 }
