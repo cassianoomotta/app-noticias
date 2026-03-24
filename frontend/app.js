@@ -107,7 +107,12 @@ function setCurrentDate() {
 
 /* ─── Fetch ─── */
 async function loadNews() {
+    console.log('DEBUG: Carregando notícias...');
+    console.log('DEBUG: CACHED_NEWS existe?', typeof CACHED_NEWS !== 'undefined');
+    console.log('DEBUG: CACHED_NEWS tem dados?', CACHED_NEWS && CACHED_NEWS.length);
+    
     if (typeof CACHED_NEWS !== 'undefined' && CACHED_NEWS && CACHED_NEWS.length > 0) {
+        console.log('DEBUG: Usando dados do cache, total:', CACHED_NEWS.length);
         allNews = CACHED_NEWS;
         loadSuccess(true);
         return;
@@ -231,18 +236,14 @@ function matchesSearch(article) {
 }
 
 function applyFiltersAndRender() {
+    console.log('DEBUG applyFilters: allNews.length =', allNews.length);
     const matching = allNews.filter(a => matchesFilter(a) && matchesSearch(a));
+    console.log('DEBUG applyFilters: matching.length =', matching.length);
+    console.log('DEBUG applyFilters: activeFilter =', activeFilter);
 
-    // Separate into today vs week (non-today articles from last 7 days)
-    filteredToday = matching.filter(a => isToday(a.published));
-    // Week = this week BUT NOT today — if no date, treat as week fallback
-    const weekArticles = matching.filter(a => {
-        if (isToday(a.published)) return false;
-        const d = parseDate(a.published);
-        // Articles without parseable date: put in week section
-        if (!d) return true;
-        return isThisWeek(a.published);
-    });
+    // TEMPORÁRIO: Mostrar todas as notícias em "Hoje" para teste
+    filteredToday = [...matching];
+    const weekArticles = [];
 
     // Sort: articles with dates first (newest first), no-date at the end
     const sortByDate = (arr) => arr.sort((a, b) => {
