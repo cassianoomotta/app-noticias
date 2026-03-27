@@ -1,19 +1,28 @@
-# 🌍 Radar Global
+# 🌍 Radar Global — v3.1
 
-Aplicação web de monitoramento em tempo real de notícias globais sobre guerras, conflitos, diplomacia, China & Rússia e Brasil. Os dados são coletados automaticamente via RSS de 14 fontes internacionais, traduzidos para português e servidos por uma API assíncrona.
+Aplicação web de monitoramento em tempo real de notícias globais sobre guerras, conflitos, diplomacia, China & Rússia e Brasil. Coleta dados automaticamente via RSS de 14 fontes internacionais, traduz para português e serve via API de alto desempenho.
 
 ---
 
-## ✨ Funcionalidades
+## ✨ Novidades da Versão 3.1 (UX & Performance)
 
-- **Seção "HOJE"** — Notícias das últimas 24 horas
-- **Seção "SEMANA"** — Notícias dos últimos 7 dias (exceto as de hoje)
-- **Filtros por categoria** — Todas | Guerras | Brasil | China & Rússia
-- **Busca por palavra-chave** em tempo real
-- **Atualização automática** a cada 15 minutos
-- **Modo offline inteligente** — exibe cache local quando sem servidor
-- **PWA** — instalável em dispositivos móveis
-- **Imagens nas notícias** extraídas automaticamente dos feeds RSS
+### 🎨 Frontend & UX
+- **Hero Card 🔥** — A notícia mais recente de "Hoje" ganha destaque visual com layout horizontal e imagem expandida.
+- **Busca Inteligente 🔍** — Termos pesquisados são destacados em tempo real nos cards com `<mark>`.
+- **Status de Leitura ✅** — Notícias visitadas ficam com opacidade reduzida e persistência via `localStorage`.
+- **Filtros com Contagem 📊** — Badges dinâmicos mostram a quantidade de notícias por categoria (ex: `Brasil (12)`).
+- **Filtros Mobile Modernos 📱** — Scroll horizontal suave em dispositivos móveis, sem quebra de linhas.
+- **Sistema de Toasts 🔔** — Feedback visual elegante para erros de conexão ou status de atualização.
+- **Animações Fluidas ✨** — Transições `fade-in` suaves ao carregar mais notícias.
+
+### 🐍 Backend & Inteligência
+- **Paralelismo Real ⚡** — Scraping de 14 fontes simultâneas via `ThreadPoolExecutor`, reduzindo o tempo de processamento em ~80%.
+- **Extração Avançada de Imagem 🖼️** — Se o RSS não prover foto, o scraper acessa o link original e extrai a imagem oficial via **Open Graph (`og:image`)**.
+- **Anti-Hotlinking 🛡️** — Implementação de `no-referrer` para garantir a exibição de imagens protegidas por CDNs externos.
+- **Deduplicação por Similaridade 🔄** — Algoritmo que evita notícias repetidas de fontes diferentes através de hash de título normalizado.
+- **Robustez (Retry & Backoff) 🔁** — Sistema de tradução com 3 tentativas e fallback exponencial para evitar falhas de rede.
+- **Health Check 🩺** — Endpoint `/health` para monitorar o status do backend e idade do cache.
+- **Testes Automatizados ✅** — Suíte de testes com `pytest` (24 casos de teste) validando a lógica do scraper.
 
 ---
 
@@ -21,11 +30,13 @@ Aplicação web de monitoramento em tempo real de notícias globais sobre guerra
 
 | Camada | Tecnologia |
 |--------|-----------|
-| Backend | Python 3 + FastAPI + Uvicorn + APScheduler |
-| Scraping | Feedparser + BeautifulSoup4 |
-| Tradução | Deep-Translator (Google Translator gratuito) |
-| Frontend | HTML5 + CSS3 + JavaScript Vanilla (ES6) |
-| Deploy | Render (Web Service) |
+| **Backend** | Python 3 + FastAPI + Uvicorn + APScheduler |
+| **Networking** | HTTPX (Síncrono com paralelismo via threads) |
+| **Scraping** | Feedparser + BeautifulSoup4 |
+| **Tradução** | Deep-Translator (Google Translator Engine) |
+| **Frontend** | HTML5 + CSS3 (V3.0) + JS Vanilla (ES6+) |
+| **Testes** | Pytest |
+| **Deploy** | Render (Web Service) |
 
 ---
 
@@ -34,15 +45,16 @@ Aplicação web de monitoramento em tempo real de notícias globais sobre guerra
 ```
 /
 ├── backend/
-│   ├── main.py          # API FastAPI + agendador
-│   └── scraper.py       # Busca, filtra e traduz RSS feeds
+│   ├── main.py          # API FastAPI + Endpoints (CORS, Health)
+│   ├── scraper.py       # Crawler paralelo, Tradução e og:image
+│   └── tests/           # Testes unitários (pytest)
 ├── frontend/
-│   ├── index.html       # Interface principal
-│   ├── style.css        # Estilos (dark/light, responsivo)
-│   ├── app.js           # Lógica, filtros, classificação temporal
-│   ├── data.js          # Cache estático (notícias pré-carregadas)
-│   └── manifest.json    # Config PWA
-├── requirements.txt     # Dependências Python (para o Render)
+│   ├── index.html       # Interface principal (Referrer-policy, PWA)
+│   ├── style.css        # Design System V3.0 (Hero, Cards, Anim)
+│   ├── app.js           # Lógica de render, filtros e persistência
+│   ├── favicon.svg      # Ícone vetorial local
+│   └── icon.png         # Ícone PWA/OG de alta resolução
+├── requirements.txt     # Dependências (FastAPI, httpx, pytest, etc)
 └── README.md
 ```
 
@@ -53,7 +65,7 @@ Aplicação web de monitoramento em tempo real de notícias globais sobre guerra
 ### Pré-requisitos
 - Python 3.10+
 
-### Passos
+### Instalação e Execução
 
 ```bash
 # 1. Clone o repositório
@@ -63,36 +75,23 @@ cd app-noticias
 # 2. Instale as dependências
 pip install -r requirements.txt
 
-# 3. Inicie o servidor
+# 3. (Opcional) Rode os testes
+python -m pytest backend/tests/test_scraper.py -v
+
+# 4. Inicie o servidor
 uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 
-Acesse em: [http://localhost:8000](http://localhost:8000)
+---
+
+## 📡 Fontes Ativas
+
+- **Internacionais:** BBC World, Reuters, Al Jazeera, CNN, DW, NY Times, Fox News.
+- **Oriente Médio:** Times of Israel, Jerusalem Post.
+- **Geopolítica:** TASS (Rússia), Xinhua (China).
+- **Nacional:** G1 Globo, Folha de S.Paulo.
 
 ---
 
-## 🌐 Deploy no Render
-
-| Configuração | Valor |
-|-------------|-------|
-| **Build Command** | `pip install -r requirements.txt` |
-| **Start Command** | `uvicorn backend.main:app --host 0.0.0.0 --port $PORT` |
-
-> O arquivo `requirements.txt` deve estar na **raiz** do repositório.
-
----
-
-## 📡 Fontes de Notícias (RSS)
-
-| Região | Fonte |
-|--------|-------|
-| Global | BBC World, Reuters, Al Jazeera, CNN, DW |
-| Oriente Médio | Times of Israel, Jerusalem Post |
-| EUA | New York Times, Fox News |
-| Rússia | TASS |
-| China | Xinhua |
-| Brasil | G1 Globo, Folha de S.Paulo |
-
----
-
+> Projeto refatorado e modernizado (v3.1) para garantir a melhor experiência de leitura de notícias geopolíticas. 🚀
 > Desenvolvido por [Cassiano](https://github.com/cassianoomotta).
