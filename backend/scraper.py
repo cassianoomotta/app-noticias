@@ -64,12 +64,28 @@ def extract_image_url(entry) -> str:
     raw = entry.get('summary', '') or ''
     if not raw and hasattr(entry, 'content') and entry.content:
         raw = entry.content[0].get('value', '')
+    # Limpeza final se a URL contiver parâmetros que quebrem na renderização
+    img_url = ''
     if raw:
         soup = BeautifulSoup(raw, 'html.parser')
         img = soup.find('img')
         if img and img.get('src') and img['src'].startswith('http'):
-            return img['src']
+            img_url = img['src']
 
+    return img_url
+
+def fetch_og_image(url: str) -> str:
+    """Acessa a URL da notícia e tenta extrair a imagem do Open Graph (og:image)."""
+    try:
+        with httpx.Client(timeout=6, follow_redirects=True, headers={"User-Agent": "RadarGlobal/3.0"}) as client:
+            resp = client.get(url)
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.content, 'html.parser')
+                meta = soup.find('meta', property='og:image')
+                if meta and meta.get('content') and meta['content'].startswith('http'):
+                    return meta['content']
+    except Exception as e:
+        log.debug(f"Erro ao buscar og:image para {url}: {e}")
     return ''
 
 
@@ -227,6 +243,13 @@ def fetch_and_process_news() -> list[dict]:
                 category, tags = get_category_and_tags(combined, is_recent)
 
                 img_url = extract_image_url(entry)
+                
+                # Fallback 1: Buscar do HTML da página original (og:image)
+                if not img_url and link:
+                    log.info(f"    Sem imagem no RSS, buscando og:image para: {link[:50]}...")
+                    img_url = fetch_og_image(link)
+
+                # Fallback 2: Imagem estática do Unsplash baseada na categoria
                 if not img_url:
                     if category == "Guerras":
                         img_url = "https://images.unsplash.com/photo-1579548122080-c35fd6820ecb?auto=format&fit=crop&w=800&q=80"
