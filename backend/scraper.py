@@ -1,5 +1,5 @@
 # pyright: reportMissingImports=false
-import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import httpx          # type: ignore
 import feedparser     # type: ignore
 from deep_translator import GoogleTranslator  # type: ignore
@@ -140,29 +140,30 @@ def get_category_and_tags(translated_text: str, is_recent: bool):
     return category, list(set(tags))
 
 
-# ── Fetch paralelo ───────────────────────────────────────────────────────────
-async def fetch_feed_bytes(client: httpx.AsyncClient, source_name: str, url: str) -> tuple[str, bytes | None]:
-    """Baixa um feed RSS de forma assíncrona."""
+# ── Fetch paralelo (síncrono com threads — sem asyncio) ──────────────────────
+def fetch_feed_bytes(source_name: str, url: str) -> tuple[str, bytes | None]:
+    """Baixa um feed RSS de forma síncrona (thread-safe, sem asyncio)."""
     try:
-        resp = await client.get(url, timeout=15)
-        if resp.status_code == 200:
-            log.info(f"Feed recebido: {source_name}")
-            return source_name, resp.content
-        else:
+        with httpx.Client(timeout=15, follow_redirects=True,
+                          headers={"User-Agent": "RadarGlobal/3.0"}) as client:
+            resp = client.get(url)
+            if resp.status_code == 200:
+                log.info(f"Feed recebido: {source_name}")
+                return source_name, resp.content
             log.warning(f"Feed {source_name} retornou HTTP {resp.status_code}")
     except Exception as e:
         log.warning(f"Erro ao baixar feed {source_name}: {e}")
     return source_name, None
 
 
-async def fetch_all_feeds() -> dict[str, bytes]:
-    """Baixa todos os feeds em paralelo e retorna {source: content}."""
+def fetch_all_feeds() -> dict[str, bytes]:
+    """Baixa todos os feeds em paralelo via ThreadPoolExecutor (sem asyncio)."""
     results: dict[str, bytes] = {}
-    headers = {"User-Agent": "RadarGlobal/3.0"}
-    async with httpx.AsyncClient(headers=headers, follow_redirects=True) as client:
-        tasks = [fetch_feed_bytes(client, name, url) for name, url in RSS_FEEDS.items()]
-        for coro in asyncio.as_completed(tasks):
-            source_name, content = await coro
+    with ThreadPoolExecutor(max_workers=len(RSS_FEEDS)) as executor:
+        futures = {executor.submit(fetch_feed_bytes, name, url): name
+                   for name, url in RSS_FEEDS.items()}
+        for future in as_completed(futures):
+            source_name, content = future.result()
             if content:
                 results[source_name] = content
     return results
@@ -170,10 +171,10 @@ async def fetch_all_feeds() -> dict[str, bytes]:
 
 # ── Entry point principal ─────────────────────────────────────────────────────
 def fetch_and_process_news() -> list[dict]:
-    """Busca feeds em paralelo, filtra, traduz e retorna lista de artigos processados."""
-    log.info("Iniciando busca paralela de notícias RSS...")
+    """Busca feeds em paralelo (threads), filtra, traduz e retorna lista de artigos."""
+    log.info("Iniciando busca paralela de notícias RSS (threads)...")
 
-    feeds_content = asyncio.run(fetch_all_feeds())
+    feeds_content = fetch_all_feeds()  # síncrono — sem asyncio.run()
     log.info(f"Feeds baixados: {len(feeds_content)}/{len(RSS_FEEDS)}")
 
     processed_news = []
