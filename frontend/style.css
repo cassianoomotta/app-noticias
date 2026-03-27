@@ -117,8 +117,15 @@ body {
 }
 
 @keyframes float {
-    0%, 100% { transform: translateY(0) scale(1); }
-    50%       { transform: translateY(-28px) scale(1.04); }
+
+    0%,
+    100% {
+        transform: translateY(0) scale(1);
+    }
+
+    50% {
+        transform: translateY(-28px) scale(1.04);
+    }
 }
 
 /* ── Layout & Container ── */
@@ -165,21 +172,54 @@ header {
     background-clip: text;
 }
 
-/* ── Live Dot ── */
-.live-dot {
-    width: 13px;
-    height: 13px;
-    background: var(--accent-red);
-    border-radius: 50%;
-    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.5);
-    animation: live-pulse 2s ease-out infinite;
+/* ── Logo Icon Wrap ── */
+.logo-icon-wrap {
+    position: relative;
+    width: 48px;
+    height: 48px;
     flex-shrink: 0;
 }
 
+.logo-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(59, 91, 219, 0.18);
+    transition: transform var(--transition), box-shadow var(--transition);
+    display: block;
+}
+
+.logo-container:hover .logo-icon {
+    transform: scale(1.06);
+    box-shadow: 0 4px 20px rgba(59, 91, 219, 0.28);
+}
+
+/* ── Live Dot — badge sobreposto no canto inferior direito do ícone ── */
+.live-dot {
+    width: 12px;
+    height: 12px;
+    background: var(--accent-red);
+    border-radius: 50%;
+    border: 2px solid var(--bg-primary);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.5);
+    animation: live-pulse 2s ease-out infinite;
+    position: absolute;
+    bottom: 0;
+    right: 0;
+}
+
 @keyframes live-pulse {
-    0%   { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.6); }
-    70%  { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+    0% {
+        box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.6);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+    }
 }
 
 /* ── Header Meta ── */
@@ -223,16 +263,20 @@ header {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-wrap: nowrap;          /* nunca quebra linha */
-    overflow-x: auto;           /* scroll horizontal no mobile */
+    flex-wrap: nowrap;
+    /* nunca quebra linha */
+    overflow-x: auto;
+    /* scroll horizontal no mobile */
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;      /* esconde scrollbar Firefox */
+    scrollbar-width: none;
+    /* esconde scrollbar Firefox */
     padding-bottom: 4px;
     margin-bottom: 16px;
 }
 
 .filters::-webkit-scrollbar {
-    display: none;              /* esconde scrollbar Chrome/Safari */
+    display: none;
+    /* esconde scrollbar Chrome/Safari */
 }
 
 .filter-btn {
@@ -562,6 +606,7 @@ main {
         opacity: 0;
         transform: translateY(12px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -806,7 +851,9 @@ mark.search-highlight {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .empty-state {
@@ -868,13 +915,27 @@ mark.search-highlight {
 }
 
 @keyframes toast-in {
-    from { opacity: 0; transform: translateY(16px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes toast-out {
-    from { opacity: 1; transform: translateY(0); }
-    to   { opacity: 0; transform: translateY(16px); }
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(16px);
+    }
 }
 
 .toast.hiding {
@@ -897,6 +958,7 @@ mark.search-highlight {
    RESPONSIVE
 ═══════════════════════════════════════════ */
 @media (max-width: 900px) {
+
     /* Hero card vira coluna no tablet */
     .news-card.hero-card {
         grid-template-columns: 1fr;
