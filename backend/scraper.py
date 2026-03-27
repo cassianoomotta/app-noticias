@@ -1,122 +1,116 @@
 # pyright: reportMissingImports=false
-import feedparser  # type: ignore
+import asyncio
+import aiohttp        # type: ignore
+import feedparser     # type: ignore
 from deep_translator import GoogleTranslator  # type: ignore
 from bs4 import BeautifulSoup  # type: ignore
-import re
+import time
+import hashlib
+import logging
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone, timedelta
 
+# ── Logging estruturado ──────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s — %(message)s',
+    datefmt='%Y-%m-%dT%H:%M:%S'
+)
+log = logging.getLogger('radar_global.scraper')
 
-# Feeds de fontes globais confiáveis e locais dos países envolvidos
+
+# ── Fontes RSS ───────────────────────────────────────────────────────────────
 RSS_FEEDS = {
-    # Globais
-    "BBC World": "http://feeds.bbci.co.uk/news/world/rss.xml",
-    "Reuters": "http://feeds.reuters.com/reuters/topNews",
-    "Al Jazeera": "https://www.aljazeera.com/xml/rss/all.xml",
-    "CNN": "http://rss.cnn.com/rss/edition.rss",
-    "DW (Germany)": "https://rss.dw.com/rdf/rss-en-all",
-
-    # Específicos por País (Em Inglês para garantir processamento rápido)
-    "Times of Israel": "https://www.timesofisrael.com/feed/",
-    "Jerusalem Post (Israel)": "https://www.jpost.com/rss/rssfeedsfrontpage.aspx",
-    "New York Times (EUA)": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-    "Fox News (EUA)": "http://feeds.foxnews.com/foxnews/world",
-    "TASS (Rússia)": "https://tass.com/rss/v2.xml",
-    "Xinhua (China)": "http://www.xinhuanet.com/english/rss/world.xml",
-
-    # Veículos do Brasil
-    "G1 (Brasil)": "https://g1.globo.com/rss/g1/mundo/",
-    "Folha de S.Paulo (Brasil)": "https://feeds.folha.uol.com.br/mundo/rss091.xml"
+    "BBC World":               "http://feeds.bbci.co.uk/news/world/rss.xml",
+    "Reuters":                 "http://feeds.reuters.com/reuters/topNews",
+    "Al Jazeera":              "https://www.aljazeera.com/xml/rss/all.xml",
+    "CNN":                     "http://rss.cnn.com/rss/edition.rss",
+    "DW (Germany)":            "https://rss.dw.com/rdf/rss-en-all",
+    "Times of Israel":         "https://www.timesofisrael.com/feed/",
+    "Jerusalem Post":          "https://www.jpost.com/rss/rssfeedsfrontpage.aspx",
+    "New York Times":          "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+    "Fox News":                "http://feeds.foxnews.com/foxnews/world",
+    "TASS (Rússia)":           "https://tass.com/rss/v2.xml",
+    "Xinhua (China)":          "http://www.xinhuanet.com/english/rss/world.xml",
+    "G1 (Brasil)":             "https://g1.globo.com/rss/g1/mundo/",
+    "Folha de S.Paulo":        "https://feeds.folha.uol.com.br/mundo/rss091.xml",
 }
 
-# Palavras-chave em inglês para filtrar os artigos relevantes
 KEYWORDS = [
     "israel", "gaza", "palestine", "hamas", "idf", "netanyahu",
     "iran", "tehran", "khamenei",
     "usa", "u.s.", "united states", "washington", "biden", "america",
     "brazil", "brasil", "lula", "bolsonaro", "brasilia",
     "china", "beijing", "xi jinping", "taiwan",
-    "russia", "moscow", "putin", "ukraine", "kyiv"
+    "russia", "moscow", "putin", "ukraine", "kyiv",
 ]
 
 
-def clean_html(raw_html):
-    """Remove tags HTML do resumo do feed RSS para deixar só texto limpo."""
+# ── Utilitários ──────────────────────────────────────────────────────────────
+def clean_html(raw_html: str) -> str:
     if not raw_html:
         return ""
-    soup = BeautifulSoup(raw_html, "html.parser")
-    return soup.get_text()
+    return BeautifulSoup(raw_html, "html.parser").get_text()
 
 
 def extract_image_url(entry) -> str:
-    """
-    Extrai a URL de imagem de uma entrada RSS na seguinte ordem de prioridade:
-    1. media:thumbnail (Yahoo Media / Google News)
-    2. enclosure do tipo imagem
-    3. Primeira <img> dentro do campo summary ou content
-    """
-    # 1 — media:thumbnail
     if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
         return entry.media_thumbnail[0].get('url', '')
 
-    # 2 — enclosure de imagem
     for enc in getattr(entry, 'enclosures', []):
         if enc.get('type', '').startswith('image/'):
             return enc.get('url', '')
 
-    # 3 — primeira <img> no summary ou content
     raw = entry.get('summary', '') or ''
     if not raw and hasattr(entry, 'content') and entry.content:
         raw = entry.content[0].get('value', '')
     if raw:
         soup = BeautifulSoup(raw, 'html.parser')
         img = soup.find('img')
-        if img and img.get('src'):
-            src = img['src']
-            if src.startswith('http'):
-                return src
+        if img and img.get('src') and img['src'].startswith('http'):
+            return img['src']
 
     return ''
 
 
-def is_relevant(title, summary):
-    """Verifica se o título ou o resumo contêm alguma das palavras-chave configuradas."""
-    text_to_search = f"{title} {summary}".lower()
-    for kw in KEYWORDS:
-        if kw in text_to_search:
-            return True
-    return False
+def is_relevant(title: str, summary: str) -> bool:
+    text = f"{title} {summary}".lower()
+    return any(kw in text for kw in KEYWORDS)
 
 
-def translate_to_pt(text):
-    """Usa o Google Translator (gratuito) para traduzir o texto para Português."""
+def title_hash(title: str) -> str:
+    """Hash do título normalizado — detecta duplicatas entre fontes diferentes."""
+    normalized = ''.join(c for c in title.lower() if c.isalnum())
+    return hashlib.md5(normalized.encode()).hexdigest()
+
+
+def translate_to_pt(text: str, retries: int = 3) -> str:
+    """Traduz para pt-BR com retry + backoff exponencial."""
     if not text:
         return ""
-    try:
-        result = GoogleTranslator(source='auto', target='pt').translate(text)
-        # Bug 6 — guard: tradução pode retornar None em rate limit
-        return result if result is not None else text
-    except Exception as e:
-        print(f"Erro na tradução: {e}")
-        return text  # Em caso de erro, retorna o original em inglês
+    for attempt in range(retries):
+        try:
+            result = GoogleTranslator(source='auto', target='pt').translate(text)
+            return result if result is not None else text
+        except Exception as e:
+            wait = 2 ** attempt
+            log.warning(f"Erro na tradução (tentativa {attempt + 1}/{retries}): {e}. Aguardando {wait}s...")
+            time.sleep(wait)
+    log.error("Tradução falhou após todas as tentativas. Retornando original.")
+    return text
 
 
-def parse_published_to_iso(published_str):
-    """
-    Bug 5 — Converte a data RSS (RFC 2822) para ISO 8601.
-    Garante parsing consistente em todos os navegadores.
-    """
+def parse_published_to_iso(published_str: str) -> str:
     if not published_str:
         return ""
     try:
         dt = parsedate_to_datetime(published_str)
         return dt.isoformat()
     except Exception:
-        return published_str  # fallback: retorna a string original
+        return published_str
 
 
-def get_category_and_tags(translated_text, is_recent):
-    """Categoriza a notícia com base no conteúdo traduzido e adiciona sentimentos."""
+def get_category_and_tags(translated_text: str, is_recent: bool):
     text = translated_text.lower()
     category = "Outros"
     tags = ["mundo"]
@@ -124,92 +118,127 @@ def get_category_and_tags(translated_text, is_recent):
     if is_recent:
         tags.append("urgente")
 
-    if any(word in text for word in ["israel", "gaza", "palestina", "hamas", "irã", "eua", "estados unidos"]):
+    if any(w in text for w in ["israel", "gaza", "palestina", "hamas", "irã", "eua", "estados unidos"]):
         category = "Guerras"
         tags.append("guerra")
 
-    if any(word in text for word in ["brasil", "brasília", "lula", "bolsonaro"]):
+    if any(w in text for w in ["brasil", "brasília", "lula", "bolsonaro"]):
         category = "Brasil"
         tags.append("brasil")
 
-    # Bug 7 — usar "ChinaRussia" (sem acento) para evitar mismatch de encoding HTTP
-    if any(word in text for word in ["china", "pequim", "rússia", "moscou", "putin", "xi jinping"]):
+    if any(w in text for w in ["china", "pequim", "rússia", "moscou", "putin", "xi jinping"]):
         if category == "Brasil":
             category = "Brasil, ChinaRussia"
         elif category == "Outros":
             category = "ChinaRussia"
 
-    # Análise de Sentimento Básica
-    if any(word in text for word in ["ataque", "morte", "sanção", "crise", "tensão", "ameaça", "conflito"]):
+    if any(w in text for w in ["ataque", "morte", "sanção", "crise", "tensão", "ameaça", "conflito"]):
         tags.append("crise")
-    elif any(word in text for word in ["paz", "acordo", "trégua", "diplomacia", "negociação", "cooperação"]):
+    elif any(w in text for w in ["paz", "acordo", "trégua", "diplomacia", "negociação", "cooperação"]):
         tags.append("diplomacia")
 
     return category, list(set(tags))
 
 
-def fetch_and_process_news():
-    """Busca os RSS, filtra, traduz e retorna uma lista de dicionários com as notícias processadas."""
-    print("Iniciando busca de notícias nos RSS internacionais...")
+# ── Fetch paralelo ───────────────────────────────────────────────────────────
+async def fetch_feed_text(session: aiohttp.ClientSession, source_name: str, url: str) -> tuple[str, bytes | None]:
+    """Baixa um feed RSS de forma assíncrona."""
+    try:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            if resp.status == 200:
+                content = await resp.read()
+                log.info(f"Feed recebido: {source_name}")
+                return source_name, content
+            else:
+                log.warning(f"Feed {source_name} retornou HTTP {resp.status}")
+    except Exception as e:
+        log.warning(f"Erro ao baixar feed {source_name}: {e}")
+    return source_name, None
+
+
+async def fetch_all_feeds() -> dict[str, bytes]:
+    """Baixa todos os feeds em paralelo e retorna {source: content}."""
+    results = {}
+    async with aiohttp.ClientSession(headers={"User-Agent": "RadarGlobal/3.0"}) as session:
+        tasks = [fetch_feed_text(session, name, url) for name, url in RSS_FEEDS.items()]
+        for coro in asyncio.as_completed(tasks):
+            source_name, content = await coro
+            if content:
+                results[source_name] = content
+    return results
+
+
+# ── Entry point principal ─────────────────────────────────────────────────────
+def fetch_and_process_news() -> list[dict]:
+    """Busca feeds em paralelo, filtra, traduz e retorna lista de artigos processados."""
+    log.info("Iniciando busca paralela de notícias RSS...")
+
+    feeds_content = asyncio.run(fetch_all_feeds())
+    log.info(f"Feeds baixados: {len(feeds_content)}/{len(RSS_FEEDS)}")
+
     processed_news = []
-    seen_links = set()  # Evitar notícias duplicadas
+    seen_links: set[str] = set()
+    seen_title_hashes: set[str] = set()  # deduplicação por similaridade de título
 
-    for source_name, url in RSS_FEEDS.items():
-        print(f"Verificando {source_name}...")
+    for source_name, content in feeds_content.items():
         try:
-            feed = feedparser.parse(url)
+            feed = feedparser.parse(content)
 
-            for entry in feed.entries[:15]:  # Busca os 15 mais recentes de cada fonte
+            for entry in feed.entries[:15]:
                 title = entry.get('title', '')
                 summary_html = entry.get('summary', '')
                 summary = clean_html(summary_html)
                 link = entry.get('link', '')
                 published_raw = entry.get('published', '')
 
+                # Deduplicação por URL
                 if link in seen_links:
                     continue
 
-                if is_relevant(title, summary):
-                    print(f"  -> Relevante encontrada: {title}")
-                    seen_links.add(link)
+                # Deduplicação por hash de título (cobre mesma notícia em fontes diferentes)
+                t_hash = title_hash(title)
+                if t_hash in seen_title_hashes:
+                    log.info(f"  [dup-título] {title[:60]}")
+                    continue
 
-                    translated_title = translate_to_pt(title)
-                    translated_summary = translate_to_pt(summary)
+                if not is_relevant(title, summary):
+                    continue
 
-                    # Bug 6 — garante que nenhum dos dois é None antes de concatenar
-                    combined = (translated_title or "") + " " + (translated_summary or "")
+                log.info(f"  -> Relevante: {title[:70]}")
+                seen_links.add(link)
+                seen_title_hashes.add(t_hash)
 
-                    # Bug 5 — data em ISO 8601 para parsing consistente nos browsers
-                    published_iso = parse_published_to_iso(published_raw)
+                translated_title = translate_to_pt(title)
+                translated_summary = translate_to_pt(summary)
+                combined = (translated_title or "") + " " + (translated_summary or "")
 
-                    # Verifica se o artigo é recente (publicado nas últimas 2 horas)
-                    is_recent = False
-                    if published_iso:
-                        try:
-                            pub_dt = datetime.fromisoformat(published_iso)
-                            if pub_dt.tzinfo is None:
-                                pub_dt = pub_dt.replace(tzinfo=timezone.utc)
-                            is_recent = (datetime.now(timezone.utc) - pub_dt) < timedelta(hours=2)
-                        except Exception:
-                            pass
+                published_iso = parse_published_to_iso(published_raw)
+                is_recent = False
+                if published_iso:
+                    try:
+                        pub_dt = datetime.fromisoformat(published_iso)
+                        if pub_dt.tzinfo is None:
+                            pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+                        is_recent = (datetime.now(timezone.utc) - pub_dt) < timedelta(hours=2)
+                    except Exception:
+                        pass
 
-                    category, tags = get_category_and_tags(combined, is_recent)
+                category, tags = get_category_and_tags(combined, is_recent)
 
-                    article = {
-                        "id": link,
-                        "title": translated_title,
-                        "summary": translated_summary,
-                        "source": source_name,
-                        "published": published_iso,
-                        "tags": tags,
-                        "category": category,
-                        "link": link,
-                        "image_url": extract_image_url(entry)
-                    }
-                    processed_news.append(article)
+                processed_news.append({
+                    "id": link,
+                    "title": translated_title,
+                    "summary": translated_summary,
+                    "source": source_name,
+                    "published": published_iso,
+                    "tags": tags,
+                    "category": category,
+                    "link": link,
+                    "image_url": extract_image_url(entry),
+                })
 
         except Exception as e:
-            print(f"Erro ao processar o feed {source_name}: {e}")
+            log.error(f"Erro ao processar feed {source_name}: {e}")
 
-    print(f"Busca finalizada. Total de notícias relevantes traduzidas: {len(processed_news)}")
+    log.info(f"Busca finalizada. Total de artigos relevantes: {len(processed_news)}")
     return processed_news

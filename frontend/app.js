@@ -1,18 +1,20 @@
 /* ==================================================
-   RADAR GLOBAL — JavaScript v2.0
-   - Separa notícias em duas seções: Hoje vs. Semana
-   - Filtros funcionam em ambas as seções
-   - Load More com paginação por seção
-   - Timer de contagem regressiva para próxima atualização
+   RADAR GLOBAL — app.js v3.0
+   - Hero card (primeiro card de Hoje)
+   - Highlight de busca com <mark>
+   - Notícias lidas via localStorage
+   - Contagem nos filtros
+   - Toast de erro visual
+   - Animação fade-in no Load More
+   - showError() integrado ao fluxo
    ================================================== */
 
 const API_URL = '/api/news';
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 const INITIAL_CARDS_PER_SECTION = 9;
+const READ_KEY = 'rg_read_links';
 
-const isFileProtocol = window.location.protocol === 'file:';
-
-// Mapeia as tags em pt-BR emitidas pelo backend às classes CSS correspondentes
+// Mapeia tags às classes CSS
 const TAG_MAP = {
     'urgente': 'tag-urgente',
     'guerra': 'tag-guerra',
@@ -20,7 +22,6 @@ const TAG_MAP = {
     'crise': 'tag-crise',
     'mundo': 'tag-mundo',
     'brasil': 'tag-brasil',
-    // aliases ingleses (compatibilidade)
     'urgent': 'tag-urgente',
     'war': 'tag-guerra',
     'diplomacy': 'tag-diplomacia',
@@ -38,6 +39,7 @@ let activeFilter = 'all';
 let searchQuery = '';
 let nextRefreshAt = null;
 let countdownTimer = null;
+let readLinks = new Set(JSON.parse(localStorage.getItem(READ_KEY) || '[]'));
 
 /* ─── DOM Refs ─── */
 const todayContainer = document.getElementById('today-news-container');
@@ -54,23 +56,21 @@ const nextUpdateText = document.getElementById('next-update-text');
 const searchInput = document.getElementById('search-input');
 const currentDateEl = document.getElementById('current-date');
 const footerYear = document.getElementById('footer-year');
+const filterBtns = document.querySelectorAll('.filter-btn');
 
 /* ─── Init ─── */
 document.addEventListener('DOMContentLoaded', () => {
     setCurrentDate();
-    // Bug 1 — guard: footerYear pode ser null se o elemento não existir no DOM
     if (footerYear) footerYear.textContent = new Date().getFullYear();
     loadNews();
 
     // Auto-refresh
-    setInterval(() => {
-        loadNews();
-    }, REFRESH_INTERVAL_MS);
+    setInterval(loadNews, REFRESH_INTERVAL_MS);
 
     // Filters
-    document.querySelectorAll('.filter-btn').forEach(btn => {
+    filterBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            filterBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             activeFilter = btn.dataset.filter;
             shownToday = INITIAL_CARDS_PER_SECTION;
@@ -90,12 +90,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load More
     todayLoadMoreBtn.addEventListener('click', () => {
         shownToday += INITIAL_CARDS_PER_SECTION;
-        renderSection(filteredToday, todayContainer, shownToday, todayLoadMoreContainer, 'today');
+        renderSection(filteredToday, todayContainer, shownToday, todayLoadMoreContainer, 'today', true);
     });
 
     weekLoadMoreBtn.addEventListener('click', () => {
         shownWeek += INITIAL_CARDS_PER_SECTION;
-        renderSection(filteredWeek, weekContainer, shownWeek, weekLoadMoreContainer, 'week');
+        renderSection(filteredWeek, weekContainer, shownWeek, weekLoadMoreContainer, 'week', true);
     });
 });
 
@@ -107,9 +107,7 @@ function setCurrentDate() {
 
 /* ─── Fetch ─── */
 async function loadNews() {
-    // Sempre tenta a API ao vivo primeiro — cache é apenas fallback
     if (window.location.protocol === 'file:') {
-        // Modo file:// — sem servidor, usa cache direto
         await loadFromCache();
         return;
     }
@@ -117,9 +115,10 @@ async function loadNews() {
         const res = await fetch(API_URL);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         allNews = await res.json();
+        if (!allNews || allNews.length === 0) throw new Error('empty');
         loadSuccess(false);
     } catch (err) {
-        console.error('API indisponível, carregando cache:', err);
+        console.error('API indisponível, tentando cache:', err);
         await loadFromCache();
     }
 }
@@ -149,13 +148,15 @@ async function loadFromCache() {
         }
     } catch { }
 
+    // Último fallback: sem dados
     allNews = SAMPLE_NEWS;
     loadSuccess(true);
+    showToast('Servidor offline. Exibindo dados locais.', 'error');
 }
 
 const SAMPLE_NEWS = [
-    { title: "Carregando notícias...", summary: "Execute o servidor Python para carregar as notícias em tempo real.", category: "mundo", pubDate: new Date().toISOString(), link: "#", image: "" },
-    { title: "Servidor offline", summary: "Execute 'python main.py' na pasta backend para iniciar.", category: "brasil", pubDate: new Date().toISOString(), link: "#", image: "" }
+    { title: "Carregando notícias...", summary: "Execute o servidor Python para carregar as notícias em tempo real.", category: "mundo", published: new Date().toISOString(), link: "#", image_url: "" },
+    { title: "Servidor offline", summary: "Execute 'python main.py' na pasta backend para iniciar.", category: "brasil", published: new Date().toISOString(), link: "#", image_url: "" }
 ];
 
 function loadSuccess(fromCache = false) {
@@ -163,11 +164,11 @@ function loadSuccess(fromCache = false) {
     const updateTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
     if (fromCache) {
-        lastUpdateText.textContent = `Offline (Cache Local)`;
-        statusUpdateText.textContent = `Origem: Arquivo local. Inicie o servidor Python para conteúdo online.`;
+        lastUpdateText.textContent = 'Offline (Cache Local)';
+        statusUpdateText.textContent = 'Origem: Arquivo local. Inicie o servidor Python para conteúdo online.';
     } else {
         lastUpdateText.textContent = `Atualizado às ${updateTime}`;
-        statusUpdateText.textContent = `Status: Conectado e atualizando em tempo real`;
+        statusUpdateText.textContent = 'Status: Conectado e atualizando em tempo real';
     }
 
     nextRefreshAt = new Date(now.getTime() + REFRESH_INTERVAL_MS);
@@ -197,7 +198,6 @@ function parseDate(dateStr) {
     } catch { return null; }
 }
 
-// "Hoje" = publicadas nas últimas 24h a partir de agora (tempo real)
 function isToday(dateStr) {
     const d = parseDate(dateStr);
     if (!d) return false;
@@ -206,7 +206,6 @@ function isToday(dateStr) {
     return d >= cutoff && d <= now;
 }
 
-// "Semana" = publicadas nos últimos 7 dias, excluindo as de "hoje"
 function isThisWeek(dateStr) {
     const d = parseDate(dateStr);
     if (!d) return false;
@@ -218,9 +217,7 @@ function isThisWeek(dateStr) {
 /* ─── Filtering ─── */
 function matchesFilter(article) {
     if (activeFilter === 'all') return true;
-    if (article.category) {
-        if (article.category.includes(activeFilter)) return true;
-    }
+    if (article.category && article.category.includes(activeFilter)) return true;
     return false;
 }
 
@@ -230,14 +227,41 @@ function matchesSearch(article) {
     return haystack.includes(searchQuery);
 }
 
+/* ─── Contagens por categoria ─── */
+function buildFilterCounts(articles) {
+    const counts = { all: articles.length, Guerras: 0, Brasil: 0, ChinaRussia: 0 };
+    articles.forEach(a => {
+        if (!a.category) return;
+        if (a.category.includes('Guerras')) counts.Guerras++;
+        if (a.category.includes('Brasil')) counts.Brasil++;
+        if (a.category.includes('ChinaRussia')) counts.ChinaRussia++;
+    });
+    return counts;
+}
+
+function updateFilterCounts(all) {
+    const counts = buildFilterCounts(all);
+    filterBtns.forEach(btn => {
+        const f = btn.dataset.filter;
+        let badge = btn.querySelector('.filter-count');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'filter-count';
+            btn.appendChild(badge);
+        }
+        badge.textContent = counts[f] !== undefined ? counts[f] : '';
+    });
+}
+
 function applyFiltersAndRender() {
+    // Atualiza contagens antes de filtrar
+    updateFilterCounts(allNews);
+
     const matching = allNews.filter(a => matchesFilter(a) && matchesSearch(a));
-    // Classifica as notícias baseando-se na data (Hoje vs Semana)
     filteredToday = matching.filter(a => isToday(a.published));
     const weekArticles = matching.filter(a => isThisWeek(a.published) && !isToday(a.published));
 
-    // Sort: articles with dates first (newest first), no-date at the end
-    const sortByDate = (arr) => arr.sort((a, b) => {
+    const sortByDate = arr => arr.sort((a, b) => {
         const da = parseDate(a.published);
         const db = parseDate(b.published);
         if (da && db) return db - da;
@@ -249,17 +273,16 @@ function applyFiltersAndRender() {
     filteredToday = sortByDate(filteredToday);
     filteredWeek = sortByDate(weekArticles);
 
-    // Update counts
     todayCount.textContent = `${filteredToday.length} notícia${filteredToday.length !== 1 ? 's' : ''}`;
     weekCount.textContent = `${filteredWeek.length} notícia${filteredWeek.length !== 1 ? 's' : ''}`;
 
-    // Render
-    renderSection(filteredToday, todayContainer, shownToday, todayLoadMoreContainer, 'today');
-    renderSection(filteredWeek, weekContainer, shownWeek, weekLoadMoreContainer, 'week');
+    renderSection(filteredToday, todayContainer, shownToday, todayLoadMoreContainer, 'today', false);
+    renderSection(filteredWeek, weekContainer, shownWeek, weekLoadMoreContainer, 'week', false);
 }
 
 /* ─── Render Section ─── */
-function renderSection(articles, container, shown, loadMoreContainer, sectionType) {
+function renderSection(articles, container, shown, loadMoreContainer, sectionType, animate) {
+    const previousCount = container.querySelectorAll('.news-card').length;
     container.innerHTML = '';
 
     if (articles.length === 0) {
@@ -270,10 +293,20 @@ function renderSection(articles, container, shown, loadMoreContainer, sectionTyp
 
     const slice = articles.slice(0, shown);
     const fragment = document.createDocumentFragment();
-    slice.forEach(article => {
-        const card = createCard(article);
+
+    slice.forEach((article, index) => {
+        const isHero = (sectionType === 'today' && index === 0);
+        const card = createCard(article, isHero);
+
+        // Anima apenas os novos cards (load more)
+        if (animate && index >= previousCount) {
+            card.classList.add('animate-in');
+            card.style.animationDelay = `${(index - previousCount) * 60}ms`;
+        }
+
         fragment.appendChild(card);
     });
+
     container.appendChild(fragment);
 
     // Load more
@@ -281,8 +314,8 @@ function renderSection(articles, container, shown, loadMoreContainer, sectionTyp
         const remaining = articles.length - shown;
         loadMoreContainer.style.display = 'flex';
         const btn = loadMoreContainer.querySelector('button');
-        const sectionLabel = sectionType === 'today' ? 'de hoje' : 'da semana';
-        btn.textContent = `Ver mais ${remaining} notícia${remaining !== 1 ? 's' : ''} ${sectionLabel}`;
+        const label = sectionType === 'today' ? 'de hoje' : 'da semana';
+        btn.textContent = `Ver mais ${remaining} notícia${remaining !== 1 ? 's' : ''} ${label}`;
     } else {
         loadMoreContainer.style.display = 'none';
     }
@@ -295,25 +328,53 @@ function buildTagHtml(tagName) {
     return `<span class="tag ${cssClass}">${escapeHtml(label)}</span>`;
 }
 
-function createCard(article) {
+function highlightText(text) {
+    if (!searchQuery || !text) return escapeHtml(text || '');
+    const escaped = escapeHtml(text);
+    const escapedQuery = escapeHtml(searchQuery).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return escaped.replace(new RegExp(`(${escapedQuery})`, 'gi'),
+        '<mark class="search-highlight">$1</mark>');
+}
+
+function createCard(article, isHero = false) {
     const card = document.createElement('a');
     const hasImage = !!(article.image_url);
-    card.className = hasImage ? 'news-card has-image' : 'news-card';
+    const isRead = readLinks.has(article.link);
+
+    // Classes do card
+    let classes = 'news-card';
+    if (isHero)     classes += ' hero-card';
+    if (hasImage)   classes += ' has-image';
+    if (!hasImage && isHero) classes += ' no-hero-image';
+    if (isRead)     classes += ' read';
+
+    card.className = classes;
     card.href = article.link || '#';
     card.target = '_blank';
     card.rel = 'noopener noreferrer';
+
+    // Marcar como lido ao clicar
+    card.addEventListener('click', () => {
+        if (article.link && article.link !== '#') {
+            readLinks.add(article.link);
+            localStorage.setItem(READ_KEY, JSON.stringify([...readLinks]));
+            card.classList.add('read');
+        }
+    });
 
     const allTags = article.tags || [];
     const isUrgent = allTags.some(t => t === 'urgente' || t === 'urgent');
     const otherTags = allTags.filter(t => t !== 'urgente' && t !== 'urgent');
     const timeLabel = formatRelativeTime(article.published);
 
+    const titleHtml = highlightText(article.title || 'Sem título');
+    const summaryHtml = highlightText(article.summary || '');
+
     const imagePart = hasImage
-        ? `<div class="card-image"><img src="${escapeHtml(article.image_url)}" alt="" loading="lazy" onerror="this.parentElement.remove();this.closest('.news-card').classList.remove('has-image')"></div>`
+        ? `<div class="card-image"><img src="${escapeHtml(article.image_url)}" alt="" loading="lazy" onerror="this.parentElement.remove();this.closest('.news-card').classList.remove('has-image','hero-card');"></div>`
         : '';
 
-    card.innerHTML = `
-        ${imagePart}
+    const innerContent = `
         <div class="card-top">
             <div class="tag-list">
                 ${isUrgent ? '<span class="tag tag-urgente">Urgente</span>' : ''}
@@ -321,14 +382,49 @@ function createCard(article) {
             </div>
             ${timeLabel ? `<span class="time-pill">${timeLabel}</span>` : ''}
         </div>
-        <h3 class="card-title">${escapeHtml(article.title || 'Sem título')}</h3>
-        ${article.summary ? `<p class="card-summary">${escapeHtml(article.summary)}</p>` : ''}
+        <h3 class="card-title">${titleHtml}</h3>
+        ${summaryHtml ? `<p class="card-summary">${summaryHtml}</p>` : ''}
         <div class="card-footer">
             <span class="source-name">${escapeHtml(article.source || 'Desconhecido')}</span>
             ${article.category ? `<span class="category-label">${escapeHtml(article.category)}</span>` : ''}
         </div>
     `;
+
+    if (isHero && hasImage) {
+        card.innerHTML = `
+            ${imagePart}
+            <div class="hero-body">${innerContent}</div>
+        `;
+    } else {
+        card.innerHTML = `${imagePart}${innerContent}`;
+    }
+
     return card;
+}
+
+/* ─── Toast ─── */
+let toastTimeout = null;
+function showToast(message, type = 'info') {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    if (toastTimeout) clearTimeout(toastTimeout);
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            ${type === 'error'
+                ? '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'
+                : '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'}
+        </svg>
+        <span>${escapeHtml(message)}</span>
+    `;
+    document.body.appendChild(toast);
+
+    toastTimeout = setTimeout(() => {
+        toast.classList.add('hiding');
+        toast.addEventListener('animationend', () => toast.remove(), { once: true });
+    }, 4500);
 }
 
 /* ─── Helpers ─── */
@@ -354,23 +450,48 @@ function escapeHtml(str) {
 }
 
 function renderEmpty(sectionType) {
+    const isSearchActive = searchQuery.length > 0;
+    const clearAction = isSearchActive
+        ? `<span class="empty-action" onclick="clearSearch()">Limpar busca</span>`
+        : '';
+
     const msgMap = {
-        today: { icon: '📰', msg: 'Nenhuma notícia de hoje nesta categoria.' },
-        week: { icon: '🗓️', msg: 'Nenhuma notícia desta semana nesta categoria.' }
+        today: {
+            icon: '📰',
+            msg: isSearchActive
+                ? `Nenhuma notícia de hoje encontrada para "<strong>${escapeHtml(searchQuery)}</strong>".`
+                : 'Nenhuma notícia de hoje nesta categoria.'
+        },
+        week: {
+            icon: '🗓️',
+            msg: isSearchActive
+                ? `Nenhuma notícia desta semana encontrada para "<strong>${escapeHtml(searchQuery)}</strong>".`
+                : 'Nenhuma notícia desta semana nesta categoria.'
+        }
     };
     const { icon, msg } = msgMap[sectionType] || { icon: '📰', msg: 'Nenhuma notícia encontrada.' };
+
     return `<div class="empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/>
             <path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/>
         </svg>
         <p>${msg}</p>
+        ${clearAction}
     </div>`;
+}
+
+function clearSearch() {
+    searchInput.value = '';
+    searchQuery = '';
+    shownToday = INITIAL_CARDS_PER_SECTION;
+    shownWeek = INITIAL_CARDS_PER_SECTION;
+    applyFiltersAndRender();
 }
 
 function showError(container) {
     container.innerHTML = `<div class="empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
         <p>Não foi possível conectar ao servidor.<br>Verifique se o backend está ativo.</p>

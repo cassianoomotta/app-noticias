@@ -1,81 +1,113 @@
-from fastapi import FastAPI  # type: ignore
+import logging
+import os
+import json
+import datetime
+import sys
+
+from fastapi import FastAPI      # type: ignore
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore
-from fastapi.staticfiles import StaticFiles  # type: ignore
+from fastapi.staticfiles import StaticFiles          # type: ignore
 from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore
 from contextlib import asynccontextmanager
 import uvicorn  # type: ignore
-import json
-import os
-import datetime
 
-# Adicionamos o diretório atual ao sys.path para evitar ModuleNotFoundError no Render (que roda da raiz)
-import sys
+# ── Path: garante que scraper.py seja encontrado no Render (roda da raiz) ───
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from scraper import fetch_and_process_news  # type: ignore
 
-# Caminhos absolutos para funcionar tanto local quanto no Render
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIR = os.path.join(BASE_DIR, "..", "frontend")
-CACHE_FILE = os.path.join(BASE_DIR, "news_cache.json")
+# ── Logging estruturado ──────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s — %(message)s',
+    datefmt='%Y-%m-%dT%H:%M:%S',
+)
+log = logging.getLogger('radar_global.main')
+
+# ── Caminhos absolutos ───────────────────────────────────────────────────────
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, '..', 'frontend')
+CACHE_FILE   = os.path.join(BASE_DIR, 'news_cache.json')
+
+# ── CORS: configurável via variável de ambiente ──────────────────────────────
+# Em produção: ALLOWED_ORIGINS=https://radarglobal.com
+# Em dev: deixar vazio ou "*"
+_raw_origins = os.getenv('ALLOWED_ORIGINS', '*')
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(',') if o.strip()]
 
 
+# ── Job do agendador ─────────────────────────────────────────────────────────
 def run_scraper_job():
-    """Função que rodará pelo agendador a cada X minutos"""
-    print(f"[{datetime.datetime.now()}] Iniciando job automático de busca de notícias...")
+    log.info("Iniciando job de scraping...")
     try:
         new_data = fetch_and_process_news()
-
-        # Salva em JSON para entrega rápida na API
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(new_data, f, ensure_ascii=False, indent=4)
-
-        print(f"[{datetime.datetime.now()}] Job finalizado. Cache salvo com sucesso.")
+        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(new_data, f, ensure_ascii=False, indent=2)
+        log.info(f"Job finalizado. {len(new_data)} artigos salvos em cache.")
     except Exception as e:
-        print(f"Erro no agendador ao buscar notícias: {e}")
+        log.error(f"Erro no job de scraping: {e}", exc_info=True)
 
 
-# Bug 2 — usar lifespan em vez do deprecated @app.on_event("startup")
+# ── Lifespan ─────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    # startup: se o cache não existe, faz fetch imediato
     if not os.path.exists(CACHE_FILE):
+        log.info("Cache não encontrado — executando scraping inicial...")
         run_scraper_job()
 
     scheduler = BackgroundScheduler()
-    # Rodar o scraper a cada 15 minutos
-    scheduler.add_job(run_scraper_job, "interval", minutes=15)
+    scheduler.add_job(run_scraper_job, 'interval', minutes=15)
     scheduler.start()
+    log.info("Agendador iniciado (intervalo: 15 min).")
 
-    yield  # app está em execução
+    yield
 
-    # shutdown
     scheduler.shutdown()
+    log.info("Agendador encerrado.")
 
 
-app = FastAPI(title="Radar Global API", lifespan=lifespan)
+# ── App ───────────────────────────────────────────────────────────────────────
+app = FastAPI(title='Radar Global API', version='3.0.0', lifespan=lifespan)
 
-# Habilitar CORS para o frontend local (ou de qualquer origem se for no ar)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
 
 
-@app.get("/api/news")
-def get_news():
-    """Lê o cache local e envia rapidamente para o frontend."""
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+@app.get('/health')
+def health_check():
+    """Health check para monitoramento externo (Render, UptimeRobot, etc.)."""
+    cache_age_minutes = None
     if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data
+        mtime = os.path.getmtime(CACHE_FILE)
+        age_seconds = (datetime.datetime.now().timestamp() - mtime)
+        cache_age_minutes = int(age_seconds / 60 * 10) / 10  # 1 casa decimal
+
+    return {
+        'status': 'ok',
+        'cache_exists': os.path.exists(CACHE_FILE),
+        'cache_age_minutes': cache_age_minutes,
+        'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
+    }
+
+
+@app.get('/api/news')
+def get_news():
+    """Retorna as notícias do cache local de forma rápida."""
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    log.warning('Cache não encontrado — retornando lista vazia.')
     return []
 
 
-# Bug 3 — path absoluto para o frontend (funciona no Render e localmente)
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+# ── Static files (frontend) ───────────────────────────────────────────────────
+app.mount('/', StaticFiles(directory=FRONTEND_DIR, html=True), name='frontend')
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+if __name__ == '__main__':
+    uvicorn.run('main:app', host='0.0.0.0', port=8000, reload=True)
