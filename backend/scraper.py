@@ -1,6 +1,6 @@
 # pyright: reportMissingImports=false
 import asyncio
-import aiohttp        # type: ignore
+import httpx          # type: ignore
 import feedparser     # type: ignore
 from deep_translator import GoogleTranslator  # type: ignore
 from bs4 import BeautifulSoup  # type: ignore
@@ -141,16 +141,15 @@ def get_category_and_tags(translated_text: str, is_recent: bool):
 
 
 # ── Fetch paralelo ───────────────────────────────────────────────────────────
-async def fetch_feed_text(session: aiohttp.ClientSession, source_name: str, url: str) -> tuple[str, bytes | None]:
+async def fetch_feed_bytes(client: httpx.AsyncClient, source_name: str, url: str) -> tuple[str, bytes | None]:
     """Baixa um feed RSS de forma assíncrona."""
     try:
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-            if resp.status == 200:
-                content = await resp.read()
-                log.info(f"Feed recebido: {source_name}")
-                return source_name, content
-            else:
-                log.warning(f"Feed {source_name} retornou HTTP {resp.status}")
+        resp = await client.get(url, timeout=15)
+        if resp.status_code == 200:
+            log.info(f"Feed recebido: {source_name}")
+            return source_name, resp.content
+        else:
+            log.warning(f"Feed {source_name} retornou HTTP {resp.status_code}")
     except Exception as e:
         log.warning(f"Erro ao baixar feed {source_name}: {e}")
     return source_name, None
@@ -158,9 +157,10 @@ async def fetch_feed_text(session: aiohttp.ClientSession, source_name: str, url:
 
 async def fetch_all_feeds() -> dict[str, bytes]:
     """Baixa todos os feeds em paralelo e retorna {source: content}."""
-    results = {}
-    async with aiohttp.ClientSession(headers={"User-Agent": "RadarGlobal/3.0"}) as session:
-        tasks = [fetch_feed_text(session, name, url) for name, url in RSS_FEEDS.items()]
+    results: dict[str, bytes] = {}
+    headers = {"User-Agent": "RadarGlobal/3.0"}
+    async with httpx.AsyncClient(headers=headers, follow_redirects=True) as client:
+        tasks = [fetch_feed_bytes(client, name, url) for name, url in RSS_FEEDS.items()]
         for coro in asyncio.as_completed(tasks):
             source_name, content = await coro
             if content:
