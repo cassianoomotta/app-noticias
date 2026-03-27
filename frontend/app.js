@@ -39,6 +39,8 @@ let activeFilter = 'all';
 let searchQuery = '';
 let nextRefreshAt = null;
 let countdownTimer = null;
+let autoRefreshTimer = null;   // timer do ciclo automático
+let isPaused = false;           // estado de pausa
 let readLinks = new Set(JSON.parse(localStorage.getItem(READ_KEY) || '[]'));
 
 /* ─── DOM Refs ─── */
@@ -57,6 +59,12 @@ const searchInput = document.getElementById('search-input');
 const currentDateEl = document.getElementById('current-date');
 const footerYear = document.getElementById('footer-year');
 const filterBtns = document.querySelectorAll('.filter-btn');
+const refreshNowBtn = document.getElementById('refresh-now-btn');
+const pauseBtn = document.getElementById('pause-btn');
+const pauseLabel = document.getElementById('pause-label');
+const pauseIcon = document.getElementById('pause-icon');
+const playIcon = document.getElementById('play-icon');
+const refreshIndicator = document.getElementById('refresh-indicator');
 
 /* ─── Init ─── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -64,8 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (footerYear) footerYear.textContent = new Date().getFullYear();
     loadNews();
 
-    // Auto-refresh
-    setInterval(loadNews, REFRESH_INTERVAL_MS);
+    // Inicia ciclo automático
+    startAutoRefresh();
 
     // Filters
     filterBtns.forEach(btn => {
@@ -97,7 +105,59 @@ document.addEventListener('DOMContentLoaded', () => {
         shownWeek += INITIAL_CARDS_PER_SECTION;
         renderSection(filteredWeek, weekContainer, shownWeek, weekLoadMoreContainer, 'week', true);
     });
+
+    // Refresh imediato
+    refreshNowBtn.addEventListener('click', async () => {
+        if (refreshNowBtn.disabled) return;
+        refreshNowBtn.disabled = true;
+        refreshNowBtn.classList.add('loading');
+        await loadNews();
+        refreshNowBtn.disabled = false;
+        refreshNowBtn.classList.remove('loading');
+        // Reinicia o ciclo a partir de agora (mesmo se pausado, reinicia pausado)
+        if (!isPaused) startAutoRefresh();
+    });
+
+    // Pausar / Retomar
+    pauseBtn.addEventListener('click', () => {
+        isPaused ? resumeAutoRefresh() : pauseAutoRefresh();
+    });
 });
+
+/* ─── Auto-refresh control ─── */
+function startAutoRefresh() {
+    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+    autoRefreshTimer = setInterval(loadNews, REFRESH_INTERVAL_MS);
+}
+
+function pauseAutoRefresh() {
+    isPaused = true;
+    if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    nextUpdateText.textContent = 'Atualização automática pausada';
+    refreshIndicator.textContent = 'Pausado';
+    refreshIndicator.style.color = 'var(--accent-red)';
+    pauseBtn.classList.add('paused');
+    pauseLabel.textContent = 'Retomar';
+    pauseIcon.style.display = 'none';
+    playIcon.style.display = 'inline';
+    showToast('Atualização automática pausada.', 'info');
+}
+
+function resumeAutoRefresh() {
+    isPaused = false;
+    startAutoRefresh();
+    // Agenda próxima atualização
+    nextRefreshAt = new Date(Date.now() + REFRESH_INTERVAL_MS);
+    startCountdown();
+    refreshIndicator.textContent = 'Atualização automática ativa';
+    refreshIndicator.style.color = '';
+    pauseBtn.classList.remove('paused');
+    pauseLabel.textContent = 'Pausar';
+    pauseIcon.style.display = 'inline';
+    playIcon.style.display = 'none';
+    showToast('Atualização automática retomada.', 'info');
+}
 
 /* ─── Date Setup ─── */
 function setCurrentDate() {
@@ -343,10 +403,10 @@ function createCard(article, isHero = false) {
 
     // Classes do card
     let classes = 'news-card';
-    if (isHero)     classes += ' hero-card';
-    if (hasImage)   classes += ' has-image';
+    if (isHero) classes += ' hero-card';
+    if (hasImage) classes += ' has-image';
     if (!hasImage && isHero) classes += ' no-hero-image';
-    if (isRead)     classes += ' read';
+    if (isRead) classes += ' read';
 
     card.className = classes;
     card.href = article.link || '#';
@@ -414,8 +474,8 @@ function showToast(message, type = 'info') {
     toast.innerHTML = `
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             ${type === 'error'
-                ? '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'
-                : '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'}
+            ? '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'
+            : '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'}
         </svg>
         <span>${escapeHtml(message)}</span>
     `;
