@@ -226,6 +226,17 @@ def fetch_and_process_news() -> list[dict]:
 
                 category, tags = get_category_and_tags(combined, is_recent)
 
+                img_url = extract_image_url(entry)
+                if not img_url:
+                    if category == "Guerras":
+                        img_url = "https://images.unsplash.com/photo-1579548122080-c35fd6820ecb?auto=format&fit=crop&w=800&q=80"
+                    elif category == "Brasil":
+                        img_url = "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?auto=format&fit=crop&w=800&q=80"
+                    elif category == "ChinaRussia":
+                        img_url = "https://images.unsplash.com/photo-1541888081622-4a00cb9dc49b?auto=format&fit=crop&w=800&q=80"
+                    else:  # Mundo
+                        img_url = "https://images.unsplash.com/photo-1521295121783-8a321d551ad2?auto=format&fit=crop&w=800&q=80"
+
                 processed_news.append({
                     "id": link,
                     "title": translated_title,
@@ -235,7 +246,7 @@ def fetch_and_process_news() -> list[dict]:
                     "tags": tags,
                     "category": category,
                     "link": link,
-                    "image_url": extract_image_url(entry),
+                    "image_url": img_url,
                 })
 
         except Exception as e:
