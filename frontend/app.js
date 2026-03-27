@@ -40,7 +40,6 @@ let searchQuery = '';
 let nextRefreshAt = null;
 let countdownTimer = null;
 let autoRefreshTimer = null;   // timer do ciclo automático
-let isPaused = false;           // estado de pausa
 let readLinks = new Set(JSON.parse(localStorage.getItem(READ_KEY) || '[]'));
 
 /* ─── DOM Refs ─── */
@@ -60,10 +59,6 @@ const currentDateEl = document.getElementById('current-date');
 const footerYear = document.getElementById('footer-year');
 const filterBtns = document.querySelectorAll('.filter-btn');
 const refreshNowBtn = document.getElementById('refresh-now-btn');
-const pauseBtn = document.getElementById('pause-btn');
-const pauseLabel = document.getElementById('pause-label');
-const pauseIcon = document.getElementById('pause-icon');
-const playIcon = document.getElementById('play-icon');
 const refreshIndicator = document.getElementById('refresh-indicator');
 
 /* ─── Init ─── */
@@ -106,21 +101,15 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSection(filteredWeek, weekContainer, shownWeek, weekLoadMoreContainer, 'week', true);
     });
 
-    // Refresh imediato
+    // Refresh imediato — adianta o ciclo e reinicia o timer de 15min do zero
     refreshNowBtn.addEventListener('click', async () => {
         if (refreshNowBtn.disabled) return;
         refreshNowBtn.disabled = true;
         refreshNowBtn.classList.add('loading');
         await loadNews();
+        startAutoRefresh();          // reinicia o timer do zero a partir desse momento
         refreshNowBtn.disabled = false;
         refreshNowBtn.classList.remove('loading');
-        // Reinicia o ciclo a partir de agora (mesmo se pausado, reinicia pausado)
-        if (!isPaused) startAutoRefresh();
-    });
-
-    // Pausar / Retomar
-    pauseBtn.addEventListener('click', () => {
-        isPaused ? resumeAutoRefresh() : pauseAutoRefresh();
     });
 });
 
@@ -130,34 +119,7 @@ function startAutoRefresh() {
     autoRefreshTimer = setInterval(loadNews, REFRESH_INTERVAL_MS);
 }
 
-function pauseAutoRefresh() {
-    isPaused = true;
-    if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
-    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-    nextUpdateText.textContent = 'Atualização automática pausada';
-    refreshIndicator.textContent = 'Pausado';
-    refreshIndicator.style.color = 'var(--accent-red)';
-    pauseBtn.classList.add('paused');
-    pauseLabel.textContent = 'Retomar';
-    pauseIcon.style.display = 'none';
-    playIcon.style.display = 'inline';
-    showToast('Atualização automática pausada.', 'info');
-}
 
-function resumeAutoRefresh() {
-    isPaused = false;
-    startAutoRefresh();
-    // Agenda próxima atualização
-    nextRefreshAt = new Date(Date.now() + REFRESH_INTERVAL_MS);
-    startCountdown();
-    refreshIndicator.textContent = 'Atualização automática ativa';
-    refreshIndicator.style.color = '';
-    pauseBtn.classList.remove('paused');
-    pauseLabel.textContent = 'Pausar';
-    pauseIcon.style.display = 'inline';
-    playIcon.style.display = 'none';
-    showToast('Atualização automática retomada.', 'info');
-}
 
 /* ─── Date Setup ─── */
 function setCurrentDate() {
